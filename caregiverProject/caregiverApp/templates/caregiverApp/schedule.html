@@ -1,0 +1,191 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caregiver Portal - Scheduling Workspace</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body class="bg-light-blue-variant" style="background-color: #eaf4f9;">
+
+   <div class="bg-white border-bottom py-3 shadow-sm">
+        <div class="container d-flex justify-content-between align-items-center">
+            <h1 class="h3 fw-bold mb-0 text-dark">Caregiver Dashboard</h1>
+            <a href="{% url 'logout' %}" class="btn btn-sm btn-outline-danger fw-bold">Logout</a>
+        </div>
+    </div>
+
+    <nav class="bg-white border-bottom py-2 mb-4">
+        <div class="container d-flex gap-4">
+            <a href="{% url 'home' %}" class="nav-link text-muted transition-link">Home</a>
+            <a href="{% url 'schedule' %}" class="nav-link fw-bold text-primary border-bottom border-primary pb-1">Schedule medication</a>
+            <a href="{% url 'adherence' %}" class="nav-link text-muted transition-link">Adherence logs</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card p-4 border-0 shadow-sm rounded-3 bg-white patient-card">
+                    <h4 class="fw-bold mb-3 auth-title h5">Set Prescription Time</h4>
+                    <form method="POST" action="{% url 'schedule' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_tx">
+                        
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Target Patient</label>
+                            <select name="patient" class="form-select" required>
+                                <option value="">-- Select Patient --</option>
+                                {% for patient in patients %}
+                                    <option value="{{ patient.patientID }}">{{ patient.fullName }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Select Medication</label>
+                            <select name="medication" class="form-select" required>
+                                <option value="">-- Select Medication --</option>
+                                {% for med in meds %}
+                                    <option value="{{ med.medicationID }}">{{ med.medicationName }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Dosage</label>
+                            <input type="text" name="dosage" class="form-control" placeholder="e.g. 2 pills" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Set Scheduled Administration Time</label>
+                            <input type="time" name="scheduled_time" class="form-control" required>
+                        </div>
+
+                        <button type="submit" class="btn btn-info text-white w-100 fw-bold mt-2" style="background-color: #00a8e8; border: none;">Generate Time Reminder</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card p-4 border-0 shadow-sm rounded-3 bg-white patient-card">
+                    <h4 class="fw-bold mb-3 auth-title h5">Prescription Schedule</h4>
+                    
+                    <div class="table-responsive">
+                        <table class="table align-middle table-hover">
+                            <thead class="table-light xtra-small">
+                                <tr>
+                                    <th>Patient</th>
+                                    <th>Medication details</th>
+                                    <th>Dosage</th>
+                                    <th>Scheduled Time</th>
+                                    <th>Status Trigger</th>
+                                    <th class="text-center" style="width: 140px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="small">
+                                {% for slot in schedules %}
+                                <tr>
+                                    <td class="fw-bold">👤 {{ slot.prescriptionID.patientID.fullName }}</td>
+                                    <td>{{ slot.prescriptionID.medicationID.medicationName }} {{ slot.prescriptionID.medicationID.colorBoxCode }}</td>
+                                    <td>{{ slot.prescriptionID.dosage }}</td>
+                                    <td class="fw-bold text-dark"> {{ slot.scheduledTime|time:'H:i' }}</td>
+                                    
+                                    <td>
+                                        {% for log in slot.daily_logs.all %}
+                                            {% if log.logDate == today %}
+                                                {% if log.medStatus == 'Taken' %}
+                                                    <span class="badge bg-success py-1 px-2 text-white rounded-2 btn-xs">✓ Taken</span>
+                                                {% else %}
+                                                    <form method="POST" action="{% url 'schedule' %}" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="action" value="mark_taken">
+                                                        <input type="hidden" name="schedule_id" value="{{ slot.scheduleID }}">
+                                                        <button type="submit" class="btn btn-warning btn-xs fw-bold text-dark px-2 shadow-sm">Mark Taken</button>
+                                                    </form>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    </td>
+                                    
+                                    <td class="text-center">
+                                        <div class="d-flex justify-content-center gap-1">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-bs-toggle="modal" data-bs-target="#editModal-{{ slot.scheduleID }}">Edit</button>
+                                            
+                                            <form method="POST" action="{% url 'schedule' %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="delete_tx">
+                                                <input type="hidden" name="tx_id" value="{{ slot.prescriptionID.prescriptionID }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <div class="modal fade" id="editModal-{{ slot.scheduleID }}" tabindex="-1" aria-labelledby="modalLabel-{{ slot.scheduleID }}" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content text-start">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title fw-bold auth-title h6" id="modalLabel-{{ slot.scheduleID }}">Modify Schedule Entry</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <form method="POST" action="{% url 'schedule' %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="edit_reminder">
+                                                <input type="hidden" name="schedule_id" value="{{ slot.scheduleID }}">
+                                                
+                                                <div class="modal-body bg-light-blue-variant">
+                                                    <div class="mb-3">
+                                                        <label class="form-label xtra-small fw-bold">Patient Name</label>
+                                                        <select name="patient" class="form-select" required>
+                                                            {% for p in patients %}
+                                                                <option value="{{ p.patientID }}" {% if p.patientID == slot.prescriptionID.patientID.patientID %}selected{% endif %}>{{ p.fullName }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <label class="form-label xtra-small fw-bold">Medication Name</label>
+                                                        <select name="medication" class="form-select" required>
+                                                            {% for m in meds %}
+                                                                <option value="{{ m.medicationID }}" {% if m.medicationID == slot.prescriptionID.medicationID.medicationID %}selected{% endif %}>{{ m.medicationName }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <label class="form-label xtra-small fw-bold">Dosage</label>
+                                                        <input type="text" name="dosage" class="form-control" value="{{ slot.prescriptionID.dosage }}" required>
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <label class="form-label xtra-small fw-bold">Scheduled Time</label>
+                                                        <input type="time" name="scheduled_time" class="form-control" value="{{ slot.scheduledTime|time:'H:i' }}" required>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-xs fw-bold" data-bs-dismiss="modal">Close</button>
+                                                    <button type="submit" class="btn btn-sky-blue btn-xs fw-bold px-3">Save Changes</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4 xtra-small">No active reminders configured in the tracker workspace yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
