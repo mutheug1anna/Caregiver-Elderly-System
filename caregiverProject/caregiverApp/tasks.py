@@ -25,7 +25,7 @@ def send_medication_reminders():
         if slot.scheduledTime.strftime('%H:%M') == current_time_str
     ]
 
-    print(f"🎯 Total records found matching this exact minute: {len(due_schedules)}")
+    print(f" Total records found matching this exact minute: {len(due_schedules)}")
 
     for slot in due_schedules:
         patient = slot.prescriptionID.patientID
